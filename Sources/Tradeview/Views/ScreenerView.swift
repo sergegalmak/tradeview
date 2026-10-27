@@ -1,4 +1,7 @@
 import SwiftUI
+#if SWIFT_PACKAGE
+import TradeviewCore
+#endif
 
 struct ScreenerView: View {
     @EnvironmentObject private var store: AppStore
@@ -6,6 +9,8 @@ struct ScreenerView: View {
 
     @State private var filters = ScreenerFilters()
     @State private var sort: ScreenerSort = .signalStrength
+    @State private var limitPE = false
+    @State private var maximumPE = 30.0
 
     private var sectors: [String] {
         Array(Set(store.snapshot.stocks.map(\.sector))).sorted()
@@ -19,11 +24,12 @@ struct ScreenerView: View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Скринер перспективных акций")
                 .font(.largeTitle.bold())
-            Text("Фильтры применяются к текущему локальному снимку данных; это не торговый сигнал.")
+            Text("Сортировка по согласованности данных не является рейтингом ожидаемой доходности.")
                 .foregroundStyle(.secondary)
 
             GroupBox("Фильтры") {
-                HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
                     TextField("Тикер или компания", text: $filters.query)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 240)
@@ -37,7 +43,7 @@ struct ScreenerView: View {
                     Picker("Действие", selection: $filters.action) {
                         Text("Все действия").tag(nil as InvestmentAction?)
                         ForEach(InvestmentAction.allCases) { action in
-                            Text(action.rawValue).tag(action as InvestmentAction?)
+                            Text(action.title).tag(action as InvestmentAction?)
                         }
                     }
                     .frame(maxWidth: 170)
@@ -48,11 +54,25 @@ struct ScreenerView: View {
                     }
                     .frame(maxWidth: 170)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Мин. уверенность: \(filters.minimumConfidence.percentString)")
+                        Text("Мин. согласованность: \(filters.minimumConfidence.percentString)")
                             .font(.caption)
-                        Slider(value: $filters.minimumConfidence, in: 0.50...0.90, step: 0.05)
+                        Slider(value: $filters.minimumConfidence, in: 0...1, step: 0.05)
+                            .accessibilityLabel("Минимальная согласованность данных, не вероятность успеха")
                     }
                     .frame(width: 170)
+                }
+                HStack {
+                    Picker("Капитализация от", selection: $filters.minimumMarketCapBillions) {
+                        Text("Любая").tag(0.0)
+                        Text("10 млрд USD").tag(10.0)
+                        Text("100 млрд USD").tag(100.0)
+                        Text("1 трлн USD").tag(1_000.0)
+                    }.frame(maxWidth: 280)
+                    Toggle("Ограничить P/E", isOn: $limitPE)
+                    TextField("Максимум P/E", value: $maximumPE, format: .number)
+                        .textFieldStyle(.roundedBorder).frame(width: 100).disabled(!limitPE)
+                    Button("Сбросить") { filters = ScreenerFilters(); limitPE = false; maximumPE = 30 }
+                }
                 }
                 .padding(.vertical, 4)
             }
@@ -97,16 +117,17 @@ struct ScreenerView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 Text(stock.price, format: .currency(code: "USD"))
                                     .frame(width: 96, alignment: .trailing)
-                                Text(stock.dailyChangePercentage, format: .number.sign(strategy: .always()).precision(.fractionLength(2)))
+                                Text(stock.dailyChangePercentage.formatted(.number.sign(strategy: .always()).precision(.fractionLength(2))) + "%")
                                     .foregroundStyle(stock.dailyChangePercentage >= 0 ? .green : .red)
                                     .frame(width: 92, alignment: .trailing)
-                                ActionBadge(action: stock.signal.action)
+                                PublishedActionBadge(action: stock.signal.action)
                                     .frame(width: 130, alignment: .leading)
-                                Text(stock.signal.confidence.percentString)
+                                Text(stock.signal.confidenceLabel)
                                     .monospacedDigit()
                                     .frame(width: 112, alignment: .trailing)
                             }
                             .padding(.vertical, 5)
+                            .help(stock.signal.rationale)
                         }
                         .buttonStyle(.plain)
                     }
@@ -117,5 +138,7 @@ struct ScreenerView: View {
             DisclosureBanner()
         }
         .pageLayout(title: "Скринер")
+        .onChange(of: limitPE) { _, value in filters.maximumPE = value ? maximumPE : nil }
+        .onChange(of: maximumPE) { _, value in if limitPE { filters.maximumPE = value } }
     }
 }

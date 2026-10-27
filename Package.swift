@@ -10,6 +10,7 @@ let package = Package(
     targets: [
         .target(name: "TradeviewCore"),
         .executableTarget(name: "Tradeview", dependencies: ["TradeviewCore"]),
-        .testTarget(name: "TradeviewCoreTests", dependencies: ["TradeviewCore"])
+        .testTarget(name: "TradeviewCoreTests", dependencies: ["TradeviewCore"]),
+        .testTarget(name: "TradeviewTests", dependencies: ["Tradeview", "TradeviewCore"])
     ]
 )

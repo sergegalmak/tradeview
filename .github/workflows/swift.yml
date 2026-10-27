@@ -1,0 +1,24 @@
+name: Swift validation
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version
+      - name: Core build
+        run: swift build --target TradeviewCore
+      - name: Debug application and tests
+        run: swift test
+      - name: Release application and tests
+        run: swift test -c release
+      - name: Xcode project tests
+        run: xcodebuild -project Tradeview.xcodeproj -scheme Tradeview -configuration Debug CODE_SIGNING_ALLOWED=NO test

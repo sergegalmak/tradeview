@@ -1,5 +1,8 @@
 import Charts
 import SwiftUI
+#if SWIFT_PACKAGE
+import TradeviewCore
+#endif
 
 struct MarketOverviewView: View {
     @EnvironmentObject private var store: AppStore
@@ -12,7 +15,7 @@ struct MarketOverviewView: View {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("Обзор рынка")
                             .font(.largeTitle.bold())
-                        Text("Рыночная картина и сигналы для офлайн-демо.")
+                        Text(store.snapshot.source.isOfflineDemo ? "Синтетические исторические данные; не реальные котировки." : "Рыночный срез от настроенного backend.")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -69,10 +72,10 @@ struct MarketOverviewView: View {
                                             Text(stock.name).font(.caption).foregroundStyle(.secondary)
                                         }
                                         Spacer()
-                                        ActionBadge(action: stock.signal.action)
-                                        Text(stock.signal.confidence.percentString)
+                                        PublishedActionBadge(action: stock.signal.action)
+                                        Text(stock.signal.confidenceLabel)
                                             .font(.subheadline.monospacedDigit())
-                                            .frame(width: 42, alignment: .trailing)
+                                            .frame(width: 70, alignment: .trailing)
                                     }
                                     .padding(.vertical, 9)
                                 }
@@ -101,6 +104,7 @@ struct MarketOverviewView: View {
                             }
                             .chartYAxisLabel("USD")
                             .frame(height: 195)
+                            .accessibilityLabel("Исторические цены закрытия MSFT в USD")
                             .padding(.top, 4)
                         }
                     }

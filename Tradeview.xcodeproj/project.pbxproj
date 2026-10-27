@@ -21,6 +21,9 @@
 		A0000000000000000000000C /* PortfolioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* PortfolioView.swift */; };
 		A0000000000000000000000D /* SignalHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001D /* SignalHistoryView.swift */; };
 		A0000000000000000000000E /* TradeviewCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001E /* TradeviewCoreTests.swift */; };
+		B00000000000000000000001 /* PortfolioCSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* PortfolioCSV.swift */; };
+		B00000000000000000000002 /* AppStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000012 /* AppStoreTests.swift */; };
+		B00000000000000000000003 /* Alerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000013 /* Alerts.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,6 +37,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B00000000000000000000013 /* Alerts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TradeviewCore/Alerts.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000011 /* PortfolioCSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TradeviewCore/PortfolioCSV.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000012 /* AppStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/TradeviewTests/AppStoreTests.swift; sourceTree = SOURCE_ROOT; };
 		A00000000000000000000011 /* Domain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TradeviewCore/Domain.swift; sourceTree = SOURCE_ROOT; };
 		A00000000000000000000012 /* DataSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TradeviewCore/DataSources.swift; sourceTree = SOURCE_ROOT; };
 		A00000000000000000000013 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Tradeview/AppStore.swift; sourceTree = SOURCE_ROOT; };
@@ -86,6 +92,8 @@
 			children = (
 				A00000000000000000000011 /* Domain.swift */,
 				A00000000000000000000012 /* DataSources.swift */,
+				B00000000000000000000011 /* PortfolioCSV.swift */,
+				B00000000000000000000013 /* Alerts.swift */,
 			);
 			name = TradeviewCore;
 			sourceTree = "<group>";
@@ -119,6 +127,7 @@
 			isa = PBXGroup;
 			children = (
 				A0000000000000000000001E /* TradeviewCoreTests.swift */,
+				B00000000000000000000012 /* AppStoreTests.swift */,
 			);
 			name = Tests;
 			sourceTree = "<group>";
@@ -232,6 +241,8 @@
 			files = (
 				A00000000000000000000001 /* Domain.swift in Sources */,
 				A00000000000000000000002 /* DataSources.swift in Sources */,
+				B00000000000000000000001 /* PortfolioCSV.swift in Sources */,
+				B00000000000000000000003 /* Alerts.swift in Sources */,
 				A00000000000000000000003 /* AppStore.swift in Sources */,
 				A00000000000000000000004 /* ContentView.swift in Sources */,
 				A00000000000000000000005 /* PreferencesStore.swift in Sources */,
@@ -251,6 +262,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A0000000000000000000000E /* TradeviewCoreTests.swift in Sources */,
+				B00000000000000000000002 /* AppStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -288,6 +300,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				ENABLE_TESTABILITY = YES;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
@@ -322,6 +335,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sergegalmak.tradeview.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tradeview.app/Contents/MacOS/Tradeview";
 			};
@@ -334,6 +348,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sergegalmak.tradeview.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tradeview.app/Contents/MacOS/Tradeview";

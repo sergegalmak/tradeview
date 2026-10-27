@@ -1,5 +1,9 @@
 import Charts
 import SwiftUI
+import UniformTypeIdentifiers
+#if SWIFT_PACKAGE
+import TradeviewCore
+#endif
 
 struct PortfolioView: View {
     @EnvironmentObject private var store: AppStore
@@ -7,13 +11,16 @@ struct PortfolioView: View {
     @State private var shares = ""
     @State private var averageCost = ""
     @State private var inputError: String?
+    @State private var isImporting = false
+    @State private var confirmClear = false
+    @State private var confirmDemo = false
 
     private var analysis: PortfolioAnalysis {
         PortfolioAnalyzer.analyze(positions: store.portfolio, stocks: store.snapshot.stocks)
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 5) {
@@ -24,10 +31,13 @@ struct PortfolioView: View {
                     }
                     Spacer()
                     Button("Загрузить демо") {
-                        store.loadDemoPortfolio()
+                        confirmDemo = true
+                    }
+                    Button("Импорт CSV") {
+                        isImporting = true
                     }
                     Button("Очистить", role: .destructive) {
-                        store.clearPortfolio()
+                        confirmClear = true
                     }
                     .disabled(store.portfolio.isEmpty)
                 }
@@ -65,15 +75,15 @@ struct PortfolioView: View {
                     ) {
                         MetricCard(
                             title: "Рыночная стоимость",
-                            value: analysis.totalMarketValue.formatted(.currency(code: "USD")),
-                            detail: "\(analysis.allocations.count) позиций",
+                            value: analysis.totalMarketValue?.formatted(.currency(code: "USD")) ?? "Недоступна",
+                            detail: "Оценено бумаг: \(analysis.allocations.count)",
                             tint: .blue
                         )
                         MetricCard(
                             title: "Нереализованный P/L",
-                            value: analysis.unrealizedGain.formatted(.currency(code: "USD").sign(strategy: .always)),
-                            detail: "против средней цены",
-                            tint: analysis.unrealizedGain >= 0 ? .green : .red
+                            value: analysis.unrealizedGain?.formatted(.currency(code: "USD").sign(strategy: .always())) ?? "Недоступен",
+                            detail: analysis.isComplete ? "против средней цены" : "есть позиции без оценки",
+                            tint: (analysis.unrealizedGain ?? 0) >= 0 ? .green : .red
                         )
                         MetricCard(
                             title: "Крупнейшая позиция",
@@ -93,9 +103,10 @@ struct PortfolioView: View {
                                 .foregroundStyle(by: .value("Сектор", allocation.sector))
                             }
                             .chartXAxis {
-                                AxisMarks(format: .percent)
+                                AxisMarks(format: FloatingPointFormatStyle<Double>.Percent())
                             }
                             .frame(height: 190)
+                            .accessibilityLabel("Распределение оценённой части портфеля по бумагам")
                             .padding(.top, 8)
                         }
                         .frame(maxWidth: .infinity)
@@ -133,11 +144,27 @@ struct PortfolioView: View {
             }
             .pageLayout(title: "Портфель")
         }
+        .fileImporter(isPresented: $isImporting, allowedContentTypes: [.commaSeparatedText], allowsMultipleSelection: false) { result in
+            do {
+                guard let url = try result.get().first else { return }
+                let granted = url.startAccessingSecurityScopedResource()
+                defer { if granted { url.stopAccessingSecurityScopedResource() } }
+                let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                guard size <= 1_000_000 else { inputError = "CSV превышает 1 МБ."; return }
+                inputError = store.importPortfolioCSV(try String(contentsOf: url, encoding: .utf8))
+            } catch { inputError = error.localizedDescription }
+        }
+        .confirmationDialog("Удалить все позиции портфеля?", isPresented: $confirmClear) {
+            Button("Удалить все", role: .destructive) { store.clearPortfolio() }
+        }
+        .confirmationDialog("Заменить текущий портфель демонстрационным?", isPresented: $confirmDemo) {
+            Button("Заменить", role: .destructive) { store.loadDemoPortfolio() }
+        }
     }
 
     private func positionRow(_ position: PortfolioPosition) -> some View {
-        let currentPrice = store.stock(ticker: position.ticker)?.price ?? 0
-        let marketValue = position.shares * currentPrice
+        let currentPrice = store.stock(ticker: position.ticker)?.price
+        let marketValue = currentPrice.map { position.shares * $0 }
         return HStack {
             Text(position.ticker).fontWeight(.semibold)
             Text("\(position.shares.formatted(.number)) шт.")
@@ -145,7 +172,7 @@ struct PortfolioView: View {
             Spacer()
             Text("Ср. \(position.averageCost, format: .currency(code: "USD"))")
                 .foregroundStyle(.secondary)
-            Text(marketValue, format: .currency(code: "USD"))
+            Text(marketValue?.formatted(.currency(code: "USD")) ?? "Нет котировки")
                 .frame(width: 120, alignment: .trailing)
         }
     }

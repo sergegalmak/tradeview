@@ -6,6 +6,7 @@ enum AppRoute: Hashable {
     case watchlist
     case portfolio
     case signals
+    case alerts
     case disclosure
     case stock(String)
 }
@@ -23,6 +24,7 @@ struct ContentView: View {
                 Section("Мои решения") {
                     sidebarItem("Наблюдение", icon: "eye", route: .watchlist)
                     sidebarItem("Портфель", icon: "briefcase", route: .portfolio)
+                    sidebarItem("Уведомления", icon: "bell", route: .alerts)
                 }
                 Section("Прозрачность") {
                     sidebarItem("История сигналов", icon: "clock.arrow.circlepath", route: .signals)
@@ -32,7 +34,10 @@ struct ContentView: View {
             .navigationTitle("Tradeview")
             .listStyle(.sidebar)
         } detail: {
-            detailView
+            VStack(spacing: 0) {
+                DataHealthBanner().padding([.horizontal, .top])
+                detailView
+            }
         }
     }
 
@@ -49,6 +54,8 @@ struct ContentView: View {
             PortfolioView()
         case .signals:
             SignalHistoryView(openStock: openStock)
+        case .alerts:
+            AlertsView()
         case .disclosure:
             DisclosureView()
         case .stock(let ticker):

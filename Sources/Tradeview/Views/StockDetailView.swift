@@ -1,5 +1,8 @@
 import Charts
 import SwiftUI
+#if SWIFT_PACKAGE
+import TradeviewCore
+#endif
 
 struct StockDetailView: View {
     @EnvironmentObject private var store: AppStore
@@ -33,22 +36,32 @@ struct StockDetailView: View {
                             priceCard(stock)
                         }
 
-                        if let event = stock.signal.explicitEvent {
+                        Group {
+                            let event = stock.signal.explicitEvent
                             GroupBox("Определённое событие") {
                                 HStack(alignment: .firstTextBaseline) {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(event.title).font(.headline)
-                                        Text("Ожидаемый срок: \(event.expectedBy.formatted(date: .abbreviated, time: .omitted))")
+                                        Text("Ожидаемый срок: \(event.expectedBy.auditTimestamp)")
                                             .font(.subheadline)
                                             .foregroundStyle(.secondary)
+                                        Text("Бенчмарк: \(event.benchmark)").font(.caption)
                                     }
                                     Spacer()
                                     VStack(alignment: .trailing, spacing: 2) {
-                                        Text(event.probability.percentString)
-                                            .font(.title2.bold().monospacedDigit())
-                                        Text("вероятность события")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                        TimelineView(.periodic(from: .now, by: 30)) { context in
+                                            if store.blockingIssues(at: context.date).isEmpty,
+                                               let probability = stock.signal.publishedProbability {
+                                                Text(probability.percentString).font(.title2.bold().monospacedDigit())
+                                                Text("Модельная вероятность события").font(.caption)
+                                            } else {
+                                                Text(stock.signal.publishedProbability == nil
+                                                    ? "Недостаточно исторических наблюдений или нет подтверждённой калибровки"
+                                                    : "Вероятность скрыта: данные недоступны для публикации")
+                                                    .font(.caption).foregroundStyle(.secondary)
+                                                    .frame(maxWidth: 250)
+                                            }
+                                        }
                                     }
                                 }
                                 .padding(.vertical, 6)
@@ -64,6 +77,8 @@ struct StockDetailView: View {
                         HStack(alignment: .top, spacing: 18) {
                             GroupBox("Сценарии") {
                                 VStack(alignment: .leading, spacing: 12) {
+                                    Text(store.snapshot.source.isOfflineDemo ? "Шаблонные диапазоны для демонстрации интерфейса, не прогноз." : "Диапазоны модельной доходности на указанный горизонт, не обещание результата.")
+                                        .font(.caption).foregroundStyle(.secondary)
                                     ForEach(stock.signal.scenarios) { scenario in
                                         HStack(alignment: .top) {
                                             VStack(alignment: .leading, spacing: 3) {
@@ -73,8 +88,8 @@ struct StockDetailView: View {
                                                     .foregroundStyle(.secondary)
                                             }
                                             Spacer()
-                                            Text(scenario.expectedPriceChange, format: .percent.precision(.fractionLength(0)).sign(strategy: .always()))
-                                                .foregroundStyle(scenario.expectedPriceChange >= 0 ? .green : .red)
+                                            Text("\(scenario.minimumReturn.percentString)…\(scenario.maximumReturn.percentString)")
+                                                .foregroundStyle(scenario.minimumReturn >= 0 ? .green : .red)
                                                 .font(.subheadline.monospacedDigit())
                                         }
                                     }
@@ -93,6 +108,10 @@ struct StockDetailView: View {
                             .frame(maxWidth: .infinity)
                         }
 
+                        GroupBox("Условия отмены идеи") {
+                            factorList(title: "Идея требует пересмотра, если", items: stock.signal.invalidationConditions, tint: .orange)
+                        }
+
                         GroupBox("Динамика закрытия") {
                             Chart(stock.priceHistory) { point in
                                 LineMark(
@@ -104,9 +123,19 @@ struct StockDetailView: View {
                             }
                             .chartYAxisLabel("USD")
                             .frame(height: 210)
+                            .accessibilityLabel("Исторические цены закрытия \(stock.ticker) в USD")
                             .padding(.top, 8)
                         }
 
+                        GroupBox("Воспроизводимость сигнала") {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Расчёт: \(stock.signal.generatedAt.auditTimestamp)")
+                                Text("Срез входных данных: \(stock.signal.dataCutoff.auditTimestamp)")
+                                Text("Модель: \(stock.signal.modelVersion) · Признаки: \(stock.signal.featureVersion)")
+                                Text("Снимок признаков: \(stock.signal.featureSnapshotID)")
+                            }.font(.caption).textSelection(.enabled)
+                        }
+                        MetricLineageView(provenance: stock.provenance)
                         DataProvenanceView(source: store.snapshot.source)
                         DisclosureBanner()
                     }
@@ -125,17 +154,20 @@ struct StockDetailView: View {
     private func recommendationCard(_ stock: Stock) -> some View {
         GroupBox("Рекомендация") {
             VStack(alignment: .leading, spacing: 12) {
-                ActionBadge(action: stock.signal.action)
+                PublishedActionBadge(action: stock.signal.action)
                     .font(.title3)
-                LabeledContent("Горизонт", value: stock.signal.horizon.rawValue)
+                LabeledContent("Горизонт", value: stock.signal.horizon.title)
                 VStack(alignment: .leading, spacing: 5) {
                     HStack {
                         Text("Уверенность")
                         Spacer()
-                        Text(stock.signal.confidence.percentString).monospacedDigit()
+                        Text(stock.signal.confidenceLabel)
                     }
                     ProgressView(value: stock.signal.confidence)
                         .tint(stock.signal.action.tint)
+                        .accessibilityLabel("Уверенность: \(stock.signal.confidenceLabel). Не вероятность успеха.")
+                    Text("Оценка полноты и согласованности данных, не вероятность доходности.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .padding(.vertical, 6)

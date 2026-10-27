@@ -1,32 +1,39 @@
 import SwiftUI
+#if SWIFT_PACKAGE
+import TradeviewCore
+#endif
 
 struct SignalHistoryView: View {
     @EnvironmentObject private var store: AppStore
     let openStock: (String) -> Void
+    @State private var selectedRecord: SignalHistoryItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("История и прозрачность сигналов")
                 .font(.largeTitle.bold())
-            Text("Каждая запись показывает исходное действие, факторы, риски, горизонт и уровень уверенности модели.")
+            Text("Сохранённые снимки не заменяются новой рекомендацией. Результаты и backtest ещё не рассчитаны.")
                 .foregroundStyle(.secondary)
 
-            List(store.snapshot.signalHistory) { item in
+            List(store.signalHistory) { item in
                 Button {
-                    openStock(item.ticker)
+                    selectedRecord = item
                 } label: {
                     HStack(alignment: .top, spacing: 14) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.ticker).font(.headline)
-                            Text(item.generatedAt, format: .dateTime.day().month().year().hour().minute())
+                            Text(item.signal.generatedAt.auditTimestamp)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        ActionBadge(action: item.action)
+                        VStack(alignment: .leading) {
+                            Text(item.source.isOfflineDemo ? "Архив демо" : "Архив").font(.caption2)
+                            ActionBadge(action: item.signal.action)
+                        }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(item.rationale)
+                            Text(item.signal.rationale)
                                 .lineLimit(2)
-                            Text("Горизонт: \(item.horizon.rawValue) · Уверенность: \(item.confidence.percentString)")
+                            Text("Горизонт: \(item.signal.horizon.title) · Уверенность: \(item.signal.confidenceLabel) · Модель: \(item.signal.modelVersion)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -44,6 +51,41 @@ struct SignalHistoryView: View {
             DisclosureBanner()
         }
         .pageLayout(title: "История сигналов")
+        .sheet(item: $selectedRecord) { item in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        Text("Архив: \(item.ticker)").font(.title.bold())
+                        Spacer()
+                        Button("Закрыть") { selectedRecord = nil }
+                    }
+                    Text("Историческая запись, не текущая рекомендация.").foregroundStyle(.secondary)
+                    ActionBadge(action: item.signal.action)
+                    Text("Расчёт: \(item.signal.generatedAt.auditTimestamp)")
+                    Text("Срез: \(item.signal.dataCutoff.auditTimestamp)")
+                    Text("Горизонт: \(item.signal.horizon.title) · Уверенность: \(item.signal.confidenceLabel)")
+                    Text("Модель: \(item.signal.modelVersion) · Признаки: \(item.signal.featureVersion)")
+                    Text("Снимок признаков: \(item.signal.featureSnapshotID)")
+                    Text(item.signal.rationale)
+                    Text(item.signal.explicitEvent.title)
+                    Text("Бенчмарк: \(item.signal.explicitEvent.benchmark)")
+                    Text("Срок: \(item.signal.explicitEvent.expectedBy.auditTimestamp)")
+                    Text("Фактический результат: ещё не рассчитан. Вероятности и доходность не выдумываются.")
+                        .foregroundStyle(.secondary)
+                    ForEach(item.signal.scenarios) { scenario in
+                        Text("\(scenario.title): \(scenario.minimumReturn.percentString)…\(scenario.maximumReturn.percentString)")
+                    }
+                    Text("Драйверы: \(item.signal.drivers.joined(separator: "; "))")
+                    Text("Риски: \(item.signal.risks.joined(separator: "; "))")
+                    Text("Отмена идеи: \(item.signal.invalidationConditions.joined(separator: "; "))")
+                    MetricLineageView(provenance: item.provenance)
+                    DataProvenanceView(source: item.source)
+                    DisclosureBanner()
+                    Button("Текущая карточка \(item.ticker)") { selectedRecord = nil; openStock(item.ticker) }
+                }
+                .padding(24).textSelection(.enabled)
+            }.frame(minWidth: 700, minHeight: 580)
+        }
     }
 }
 
@@ -57,7 +99,7 @@ struct DisclosureView: View {
                     .font(.largeTitle.bold())
 
                 GroupBox("Что показывает приложение") {
-                    Text("Tradeview объединяет детерминированный демонстрационный набор данных с объяснимыми сигналами: действием, горизонтом, уверенностью, сценариями, драйверами и рисками. Вероятность показывается только для конкретно сформулированного события.")
+                    Text("Tradeview — macOS-прототип. Демо содержит синтетические данные и шаблонные сценарии, а не работающую модель. Вероятность допускается только при наличии калибровочного отчёта для того же события, горизонта и версии модели. Порог в 200 наблюдений — защитный минимум, не доказательство качества модели.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -71,7 +113,7 @@ struct DisclosureView: View {
                 }
 
                 GroupBox("Данные") {
-                    Text("Сейчас используется локальный офлайн-демо-набор. Для производственного использования внешний backend должен передавать нормализованный снимок MarketSnapshot по HTTPS. Ключи поставщиков остаются на backend, а не в приложении.")
+                    Text("Без TRADEVIEW_API_URL включено офлайн-демо. HTTPS-backend должен возвращать схему v2 с источниками, временными метками, качеством и версиями. Ошибки backend не подменяются демо-данными. Устаревшие или неполные данные блокируют публикацию действующих рекомендаций. Ключи провайдеров остаются на сервере. Локальный архив не является защищённым серверным аудитом.")
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.vertical, 4)
                 }
