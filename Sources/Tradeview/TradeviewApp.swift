@@ -9,12 +9,6 @@ struct TradeviewApp: App {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 1_080, minHeight: 700)
-                .task {
-                    await store.refresh()
-                }
-        }
-        .commands {
-            SidebarCommands()
         }
     }
 }

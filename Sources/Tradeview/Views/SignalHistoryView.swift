@@ -15,76 +15,97 @@ struct SignalHistoryView: View {
             Text("Сохранённые снимки не заменяются новой рекомендацией. Результаты и backtest ещё не рассчитаны.")
                 .foregroundStyle(.secondary)
 
-            List(store.signalHistory) { item in
+            if let item = selectedRecord {
                 Button {
-                    selectedRecord = item
+                    selectedRecord = nil
                 } label: {
-                    HStack(alignment: .top, spacing: 14) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.ticker).font(.headline)
-                            Text(item.signal.generatedAt.auditTimestamp)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        VStack(alignment: .leading) {
-                            Text(item.source.isOfflineDemo ? "Архив демо" : "Архив").font(.caption2)
-                            ActionBadge(action: item.signal.action)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.signal.rationale)
-                                .lineLimit(2)
-                            Text("Горизонт: \(item.signal.horizon.title) · Уверенность: \(item.signal.confidenceLabel) · Модель: \(item.signal.modelVersion)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.vertical, 5)
+                    Label("Назад к истории", systemImage: "chevron.left")
                 }
-                .buttonStyle(.plain)
-            }
-            .listStyle(.inset)
 
-            DataProvenanceView(source: store.snapshot.source)
-            DisclosureBanner()
+                ScrollView {
+                    archivedRecord(item)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+            } else {
+                if store.signalHistory.isEmpty {
+                    EmptyState(
+                        title: "История сигналов пока пуста",
+                        message: "Здесь появятся неизменяемые снимки сохранённых сигналов с источниками и временем расчёта. Публичные котировки сами по себе не создают инвестиционных сигналов. Отсутствие записей не означает нулевую доходность или рассчитанный backtest.",
+                        icon: "clock.arrow.circlepath"
+                    )
+                } else {
+                    historyList
+                }
+
+                DataProvenanceView(source: store.snapshot.source)
+                DisclosureBanner()
+            }
         }
         .pageLayout(title: "История сигналов")
-        .sheet(item: $selectedRecord) { item in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        Text("Архив: \(item.ticker)").font(.title.bold())
-                        Spacer()
-                        Button("Закрыть") { selectedRecord = nil }
+    }
+
+    private var historyList: some View {
+        List(store.signalHistory) { item in
+            Button {
+                selectedRecord = item
+            } label: {
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.ticker).font(.headline)
+                        Text(item.signal.generatedAt.auditTimestamp)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    Text("Историческая запись, не текущая рекомендация.").foregroundStyle(.secondary)
-                    ActionBadge(action: item.signal.action)
-                    Text("Расчёт: \(item.signal.generatedAt.auditTimestamp)")
-                    Text("Срез: \(item.signal.dataCutoff.auditTimestamp)")
-                    Text("Горизонт: \(item.signal.horizon.title) · Уверенность: \(item.signal.confidenceLabel)")
-                    Text("Модель: \(item.signal.modelVersion) · Признаки: \(item.signal.featureVersion)")
-                    Text("Снимок признаков: \(item.signal.featureSnapshotID)")
-                    Text(item.signal.rationale)
-                    Text(item.signal.explicitEvent.title)
-                    Text("Бенчмарк: \(item.signal.explicitEvent.benchmark)")
-                    Text("Срок: \(item.signal.explicitEvent.expectedBy.auditTimestamp)")
-                    Text("Фактический результат: ещё не рассчитан. Вероятности и доходность не выдумываются.")
-                        .foregroundStyle(.secondary)
-                    ForEach(item.signal.scenarios) { scenario in
-                        Text("\(scenario.title): \(scenario.minimumReturn.percentString)…\(scenario.maximumReturn.percentString)")
+                    VStack(alignment: .leading) {
+                        Text(item.source.isOfflineDemo ? "Архив демо" : "Архив").font(.caption2)
+                        ActionBadge(action: item.signal.action)
                     }
-                    Text("Драйверы: \(item.signal.drivers.joined(separator: "; "))")
-                    Text("Риски: \(item.signal.risks.joined(separator: "; "))")
-                    Text("Отмена идеи: \(item.signal.invalidationConditions.joined(separator: "; "))")
-                    MetricLineageView(provenance: item.provenance)
-                    DataProvenanceView(source: item.source)
-                    DisclosureBanner()
-                    Button("Текущая карточка \(item.ticker)") { selectedRecord = nil; openStock(item.ticker) }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.signal.rationale)
+                            .lineLimit(2)
+                        Text("Горизонт: \(item.signal.horizon.title) · Уверенность: \(item.signal.confidenceLabel) · Модель: \(item.signal.modelVersion)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.tertiary)
                 }
-                .padding(24).textSelection(.enabled)
-            }.frame(minWidth: 700, minHeight: 580)
+                .padding(.vertical, 5)
+            }
+            .buttonStyle(.plain)
+        }
+        .listStyle(.inset)
+    }
+
+    private func archivedRecord(_ item: SignalHistoryItem) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Архив: \(item.ticker)").font(.title.bold())
+            Text("Историческая запись, не текущая рекомендация.").foregroundStyle(.secondary)
+            Text(item.source.isOfflineDemo ? "Архив демо" : "Архив").font(.caption2)
+            ActionBadge(action: item.signal.action)
+            Text("Расчёт: \(item.signal.generatedAt.auditTimestamp)")
+            Text("Срез: \(item.signal.dataCutoff.auditTimestamp)")
+            Text("Горизонт: \(item.signal.horizon.title) · Уверенность: \(item.signal.confidenceLabel)")
+            Text("Модель: \(item.signal.modelVersion) · Признаки: \(item.signal.featureVersion)")
+            Text("Снимок признаков: \(item.signal.featureSnapshotID)")
+            Text(item.signal.rationale)
+            Text(item.signal.explicitEvent.title)
+            Text("Бенчмарк: \(item.signal.explicitEvent.benchmark)")
+            Text("Срок: \(item.signal.explicitEvent.expectedBy.auditTimestamp)")
+            Text("Фактический результат: ещё не рассчитан. Вероятности и доходность не выдумываются.")
+                .foregroundStyle(.secondary)
+            ForEach(item.signal.scenarios) { scenario in
+                Text("\(scenario.title): \(scenario.minimumReturn.percentString)…\(scenario.maximumReturn.percentString)")
+            }
+            Text("Драйверы: \(item.signal.drivers.joined(separator: "; "))")
+            Text("Риски: \(item.signal.risks.joined(separator: "; "))")
+            Text("Отмена идеи: \(item.signal.invalidationConditions.joined(separator: "; "))")
+            MetricLineageView(provenance: item.provenance)
+            DataProvenanceView(source: item.source)
+            DisclosureBanner()
+            Button("Текущая карточка \(item.ticker)") { selectedRecord = nil; openStock(item.ticker) }
         }
     }
 }
@@ -106,14 +127,20 @@ struct DisclosureView: View {
                 GroupBox("Чего приложение не делает") {
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Не исполняет сделки и не подключается к брокеру.", systemImage: "xmark.shield")
-                        Label("Не запрашивает и не хранит брокерские или ключи поставщиков данных.", systemImage: "key.slash")
+                        Label("Не запрашивает и не хранит брокерские ключи.", systemImage: "key.slash")
                         Label("Не учитывает цели, доход, налоговый статус и приемлемый риск конкретного пользователя.", systemImage: "person.crop.circle.badge.questionmark")
                     }
                     .padding(.vertical, 4)
                 }
 
                 GroupBox("Данные") {
-                    Text("Без TRADEVIEW_API_URL включено офлайн-демо. HTTPS-backend должен возвращать схему v2 с источниками, временными метками, качеством и версиями. Ошибки backend не подменяются демо-данными. Устаревшие или неполные данные блокируют публикацию действующих рекомендаций. Ключи провайдеров остаются на сервере. Локальный архив не является защищённым серверным аудитом.")
+                    Text("Для исследовательских данных без TRADEVIEW_API_URL включено офлайн-демо. Публичные котировки загружаются отдельно и не создают инвестиционных сигналов. HTTPS-backend должен возвращать схему v2 с источниками, временными метками, качеством и версиями. Ошибки backend не подменяются демо-данными. Устаревшие или неполные данные блокируют публикацию действующих рекомендаций. Локальный архив не является защищённым серверным аудитом.")
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, 4)
+                }
+
+                GroupBox("Ключи и лицензирование") {
+                    Text("Личный ключ Twelve Data для настольного режима хранится в macOS Keychain и передаётся поставщику только в HTTP-заголовке, не в URL. Ключ не сохраняется в исходном коде или UserDefaults. Для production необходим серверный прокси: ключи провайдеров остаются на сервере. Также необходимы лицензии поставщиков и права на отображение и распространение данных; личный ключ сам по себе их не предоставляет.")
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.vertical, 4)
                 }

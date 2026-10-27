@@ -24,6 +24,9 @@
 		B00000000000000000000001 /* PortfolioCSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* PortfolioCSV.swift */; };
 		B00000000000000000000002 /* AppStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000012 /* AppStoreTests.swift */; };
 		B00000000000000000000003 /* Alerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000013 /* Alerts.swift */; };
+		C00000000000000000000001 /* PublicQuotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000011 /* PublicQuotes.swift */; };
+		C00000000000000000000002 /* PublicQuotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000012 /* PublicQuotesView.swift */; };
+		C00000000000000000000003 /* PublicQuotesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000013 /* PublicQuotesTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +59,9 @@
 		A0000000000000000000001E /* TradeviewCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/TradeviewCoreTests/TradeviewCoreTests.swift; sourceTree = SOURCE_ROOT; };
 		A00000000000000000000032 /* Tradeview.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tradeview.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000033 /* TradeviewCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TradeviewCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000011 /* PublicQuotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/TradeviewCore/PublicQuotes.swift; sourceTree = SOURCE_ROOT; };
+		C00000000000000000000012 /* PublicQuotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/Tradeview/Views/PublicQuotesView.swift; sourceTree = SOURCE_ROOT; };
+		C00000000000000000000013 /* PublicQuotesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/TradeviewCoreTests/PublicQuotesTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +100,7 @@
 				A00000000000000000000012 /* DataSources.swift */,
 				B00000000000000000000011 /* PortfolioCSV.swift */,
 				B00000000000000000000013 /* Alerts.swift */,
+				C00000000000000000000011 /* PublicQuotes.swift */,
 			);
 			name = TradeviewCore;
 			sourceTree = "<group>";
@@ -119,6 +126,7 @@
 				A0000000000000000000001B /* WatchlistView.swift */,
 				A0000000000000000000001C /* PortfolioView.swift */,
 				A0000000000000000000001D /* SignalHistoryView.swift */,
+				C00000000000000000000012 /* PublicQuotesView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -128,6 +136,7 @@
 			children = (
 				A0000000000000000000001E /* TradeviewCoreTests.swift */,
 				B00000000000000000000012 /* AppStoreTests.swift */,
+				C00000000000000000000013 /* PublicQuotesTests.swift */,
 			);
 			name = Tests;
 			sourceTree = "<group>";
@@ -243,6 +252,8 @@
 				A00000000000000000000002 /* DataSources.swift in Sources */,
 				B00000000000000000000001 /* PortfolioCSV.swift in Sources */,
 				B00000000000000000000003 /* Alerts.swift in Sources */,
+				C00000000000000000000001 /* PublicQuotes.swift in Sources */,
+				C00000000000000000000002 /* PublicQuotesView.swift in Sources */,
 				A00000000000000000000003 /* AppStore.swift in Sources */,
 				A00000000000000000000004 /* ContentView.swift in Sources */,
 				A00000000000000000000005 /* PreferencesStore.swift in Sources */,
@@ -263,6 +274,7 @@
 			files = (
 				A0000000000000000000000E /* TradeviewCoreTests.swift in Sources */,
 				B00000000000000000000002 /* AppStoreTests.swift in Sources */,
+				C00000000000000000000003 /* PublicQuotesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

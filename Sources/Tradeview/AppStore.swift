@@ -15,8 +15,28 @@ final class AppStore: ObservableObject {
     @Published private(set) var persistenceError: String?
     @Published private(set) var alertRules: [AlertRule]
     @Published private(set) var notifications: [AlertNotification]
+    @Published private(set) var publicQuote: PublicQuote?
+    @Published private(set) var isRefreshingPublicQuote = false
+    @Published private(set) var publicQuoteError: String?
+    @Published private(set) var nextPublicQuoteRefreshAt = Date.distantPast
+    @Published var stockSearchQuery = ""
+    @Published private(set) var instruments: [PublicInstrument] = []
+    @Published private(set) var isLoadingCatalog = false
+    @Published private(set) var catalogError: String?
+    @Published private(set) var catalogUpdatedAt: Date?
+    @Published private(set) var nextCatalogRefreshAt = Date.distantPast
+    @Published private(set) var publicQuotes: [String: PublicQuote] = [:]
+    @Published private(set) var quoteErrors: [String: String] = [:]
+    @Published private(set) var selectedPublicSymbol = "AAPL"
+    @Published private(set) var hasPersonalAPIKey = false
+    @Published private(set) var credentialError: String?
 
     private let provider: any MarketDataProviding
+    private let publicQuoteProvider: (any PublicQuoteProviding)?
+    private let catalogProvider: any StockCatalogProviding
+    private let credentialStore: any APICredentialStore
+    private var personalAPIKey: String?
+    private var credentialGeneration = 0
     private let preferences: any AppPreferenceStore
     private let encoder = JSONEncoder()
 
@@ -30,9 +50,15 @@ final class AppStore: ObservableObject {
 
     init(
         provider: any MarketDataProviding = MarketDataConfiguration(environment: ProcessInfo.processInfo.environment),
-        preferences: any AppPreferenceStore = UserDefaultsPreferenceStore()
+        preferences: any AppPreferenceStore = UserDefaultsPreferenceStore(),
+        publicQuoteProvider: (any PublicQuoteProviding)? = nil,
+        catalogProvider: any StockCatalogProviding = TwelveDataPublicClient(),
+        credentialStore: any APICredentialStore = KeychainAPICredentialStore()
     ) {
         self.provider = provider
+        self.publicQuoteProvider = publicQuoteProvider
+        self.catalogProvider = catalogProvider
+        self.credentialStore = credentialStore
         self.preferences = preferences
         self.snapshot = .empty
         self.watchlist = Self.load(Set<String>.self, from: preferences, key: Key.watchlist) ?? []
@@ -48,6 +74,148 @@ final class AppStore: ObservableObject {
             }
         } else {
             self.signalHistory = []
+        }
+        // Injected providers are self-contained and never touch the user's Keychain.
+        if publicQuoteProvider == nil {
+            do {
+                personalAPIKey = try credentialStore.read()
+                hasPersonalAPIKey = personalAPIKey != nil
+            } catch { credentialError = error.localizedDescription }
+        }
+    }
+
+    @discardableResult
+    func saveAPIKey(_ input: String) -> Bool {
+        let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, value != "demo", value.count <= 256,
+              value.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) }) else {
+            credentialError = "Введите личный ключ Twelve Data (без пробелов)."
+            return false
+        }
+        do {
+            try credentialStore.save(value)
+            personalAPIKey = value
+            hasPersonalAPIKey = true
+            credentialError = nil
+            resetPublicQuotes()
+            return true
+        } catch { credentialError = error.localizedDescription; return false }
+    }
+
+    func removeAPIKey() {
+        do {
+            try credentialStore.remove()
+            personalAPIKey = nil
+            hasPersonalAPIKey = false
+            credentialError = nil
+            resetPublicQuotes()
+        } catch { credentialError = error.localizedDescription }
+    }
+
+    private func resetPublicQuotes() {
+        credentialGeneration += 1
+        publicQuote = nil
+        publicQuotes = [:]
+        quoteErrors = [:]
+        publicQuoteError = nil
+        nextPublicQuoteRefreshAt = .distantPast
+    }
+
+    func selectPublicSymbol(_ symbol: String) {
+        selectedPublicSymbol = symbol
+        publicQuote = publicQuotes[symbol]
+        publicQuoteError = quoteErrors[symbol]
+    }
+
+    /// One lifecycle per active window, independent of the selected page.
+    /// Multiple windows share request coalescing and rate limits below.
+    func runPublicUpdates() async {
+        while !Task.isCancelled {
+            async let quote: Void = refreshPublicQuote()
+            async let catalog: Void = refreshStockCatalog()
+            _ = await (quote, catalog)
+            do { try await Task.sleep(for: .seconds(60)) }
+            catch { return }
+        }
+    }
+
+    func refreshStockCatalog(at now: Date = Date()) async {
+        guard !isLoadingCatalog, now >= nextCatalogRefreshAt else { return }
+        isLoadingCatalog = true
+        nextCatalogRefreshAt = now.addingTimeInterval(60)
+        defer { isLoadingCatalog = false }
+        do {
+            let incoming = try await catalogProvider.loadInstruments()
+            try Task.checkCancellation()
+            guard !incoming.isEmpty else { throw PublicQuoteError.invalidData }
+            instruments = incoming
+            catalogUpdatedAt = now
+            nextCatalogRefreshAt = now.addingTimeInterval(24 * 3_600)
+            catalogError = nil
+        } catch is CancellationError {
+            nextCatalogRefreshAt = .distantPast
+        } catch let error as URLError where error.code == .cancelled {
+            nextCatalogRefreshAt = .distantPast
+        } catch { catalogError = error.localizedDescription }
+    }
+
+    func toggleWatchlist(ticker: String) {
+        let ticker = ticker.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !ticker.isEmpty else { return }
+        if watchlist.contains(ticker) { watchlist.remove(ticker) }
+        else { watchlist.insert(ticker) }
+        persist(watchlist, key: Key.watchlist)
+    }
+
+    /// Independent of research snapshots: never archives or fabricates a signal.
+    func refreshPublicQuote(at now: Date = Date()) async {
+        let symbol = selectedPublicSymbol
+        if let credentialError {
+            publicQuoteError = credentialError
+            quoteErrors[symbol] = credentialError
+            return
+        }
+        if publicQuoteProvider == nil, !hasPersonalAPIKey, symbol != "AAPL" {
+            let message = PublicQuoteError.personalKeyRequired.localizedDescription
+            publicQuoteError = message
+            quoteErrors[symbol] = message
+            return
+        }
+        guard !isRefreshingPublicQuote, now >= nextPublicQuoteRefreshAt else { return }
+        let generation = credentialGeneration
+        isRefreshingPublicQuote = true
+        nextPublicQuoteRefreshAt = now.addingTimeInterval(60)
+        defer { isRefreshingPublicQuote = false }
+        do {
+            let source: any PublicQuoteProviding = publicQuoteProvider ?? TwelveDataPublicClient(apiKey: personalAPIKey)
+            let incoming = try await source.loadQuote(symbol: symbol)
+            try Task.checkCancellation()
+            guard generation == credentialGeneration else { return }
+            guard incoming.symbol == symbol else { throw PublicQuoteError.invalidData }
+            if let previous = publicQuotes[symbol], incoming.quoteAt < previous.quoteAt {
+                throw PublicQuoteError.invalidData
+            }
+            publicQuotes[symbol] = incoming
+            quoteErrors[symbol] = nil
+            if selectedPublicSymbol == symbol {
+                publicQuote = incoming
+                publicQuoteError = nil
+            }
+        } catch is CancellationError {
+            if generation == credentialGeneration { nextPublicQuoteRefreshAt = .distantPast }
+        } catch let error as URLError where error.code == .cancelled {
+            if generation == credentialGeneration { nextPublicQuoteRefreshAt = .distantPast }
+        } catch {
+            guard generation == credentialGeneration else { return }
+            var message = error.localizedDescription
+            if let personalAPIKey { message = message.replacingOccurrences(of: personalAPIKey, with: "[redacted]") }
+            quoteErrors[symbol] = message
+            if selectedPublicSymbol == symbol { publicQuoteError = message }
+            if case PublicQuoteError.provider(429, _) = error {
+                nextPublicQuoteRefreshAt = now.addingTimeInterval(15 * 60)
+            } else if case DataSourceError.serverStatus(429) = error {
+                nextPublicQuoteRefreshAt = now.addingTimeInterval(15 * 60)
+            }
         }
     }
 

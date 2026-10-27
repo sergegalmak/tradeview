@@ -7,56 +7,75 @@ struct WatchlistView: View {
     @EnvironmentObject private var store: AppStore
     let openStock: (String) -> Void
 
-    private var watchedStocks: [Stock] {
-        store.snapshot.stocks.filter { store.watchlist.contains($0.ticker) }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Наблюдение")
-                .font(.largeTitle.bold())
-            Text("Локально сохранённый список бумаг для повторного просмотра.")
-                .foregroundStyle(.secondary)
-
-            if watchedStocks.isEmpty {
-                EmptyState(
-                    title: "Список наблюдения пуст",
-                    message: store.watchlist.isEmpty ? "Добавьте бумагу из её карточки, чтобы отслеживать сигнал и риски." : "Бумаги сохранены, но отсутствуют в текущем срезе данных.",
-                    icon: "eye"
-                )
-            } else {
-                List(watchedStocks) { stock in
-                    HStack {
-                        Button {
-                            openStock(stock.ticker)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(stock.ticker).font(.headline)
-                                Text(stock.name).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }.buttonStyle(.plain)
-                        Spacer()
-                        Text(stock.price, format: .currency(code: "USD"))
-                        PublishedActionBadge(action: stock.signal.action)
-                        Text(stock.signal.confidenceLabel)
-                            .frame(width: 70, alignment: .trailing)
-                        Button {
-                            store.toggleWatchlist(stock)
-                        } label: {
-                            Image(systemName: "eye.slash")
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Убрать из наблюдения")
-                        .accessibilityLabel("Убрать \(stock.ticker) из наблюдения")
-                    }.padding(.vertical, 4)
+        let tickers = store.watchlist.sorted()
+        let instrumentsByTicker = Dictionary(grouping: store.instruments, by: \.symbol)
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            List {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Наблюдение")
+                        .font(.largeTitle.bold())
+                    Text("Сохранено бумаг: \(tickers.count). Список хранится локально; тикеры сохраняются, даже если их нет в каталоге.")
+                        .foregroundStyle(.secondary)
+                    Text("Каталог — не котировки. Цены загружаются при открытии; доступ зависит от тарифа. Нет инвестиционных сигналов.")
+                        .foregroundStyle(.secondary)
+                    PublicCatalogStatusView(now: context.date)
                 }
-                .listStyle(.inset)
-            }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 4)
 
-            DataProvenanceView(source: store.snapshot.source)
-            DisclosureBanner()
+                if tickers.isEmpty {
+                    ContentUnavailableView("Список наблюдения пуст", systemImage: "eye",
+                        description: Text("Найдите компанию в скринере и нажмите значок глаза рядом с бумагой или добавьте её из публичной карточки. Открытие бумаги загружает доступную котировку."))
+                } else {
+                    ForEach(tickers, id: \.self) { ticker in
+                        let candidates = instrumentsByTicker[ticker] ?? []
+                        let quote = store.publicQuotes[ticker]
+                        let instrument = candidates.first {
+                            $0.exchange == quote?.exchange && $0.currency == quote?.currency
+                        } ?? candidates.min { $0.id < $1.id }
+
+                        HStack(alignment: .top, spacing: 12) {
+                            Button {
+                                openStock(ticker)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(ticker).font(.headline)
+                                    if let instrument {
+                                        Text(instrument.name)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Text("\(instrument.exchange) · \(instrument.currency)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("Нет в текущем каталоге · карточку можно открыть")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    PublicCatalogQuoteView(ticker: ticker, now: context.date)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .help("Открыть публичную карточку \(ticker)")
+                            Button {
+                                store.toggleWatchlist(ticker: ticker)
+                            } label: {
+                                Image(systemName: "eye.slash")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Убрать из наблюдения")
+                            .accessibilityLabel("Убрать \(ticker) из наблюдения")
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .listStyle(.inset)
         }
         .pageLayout(title: "Наблюдение")
+        .task { await store.refreshStockCatalog() }
     }
 }
 
